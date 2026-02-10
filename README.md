@@ -13,8 +13,9 @@
 
 Performance
 
-- ksid.ID is 50% smaller (8 bytes) than UUIDs (16 bytes) and significantly faster to generate.
-- Its string format take at most 13 characters, 33% the size of UUIDs (36 characters).
+- ksid.ID is 50% smaller (8 bytes) than UUIDs (16 bytes) in binary form.
+- ksid.ID string is at most 13 characters, 33% the size of UUIDs (36 characters).
+- ksid.ID are faster to generate, encode and decode than UUIDs.
 - Recommended generation use case: <=1000 IDs per microsecond, and <=100 shards.
 - Maximium generation speed: 32768 IDs per microsecond in aggregate, or 3.27B/s in total.
 
