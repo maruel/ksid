@@ -741,7 +741,7 @@ func TestIDList(t *testing.T) {
 	})
 }
 
-func BenchmarkUUID(b *testing.B) {
+func BenchmarkID(b *testing.B) {
 	b.ReportAllocs()
 	b.Run("ksid-gen", func(b *testing.B) {
 		b.ReportAllocs()

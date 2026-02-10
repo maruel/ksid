@@ -16,8 +16,8 @@ Performance
 - ksid.ID is 50% smaller (8 bytes) than UUIDs (16 bytes) in binary form.
 - ksid.ID string is at most 13 characters, 33% the size of UUIDs (36 characters).
 - ksid.ID are faster to generate, encode and decode than UUIDs.
-- Recommended generation use case: <=1000 IDs per microsecond, and <=100 shards.
-- Maximium generation speed: 32768 IDs per microsecond in aggregate, or 3.27B/s in total.
+- Recommended generation throughput: <=1000 IDs per microsecond, <=100 shards.
+- Maximium generation throughput: 32768 ID/µs and 3.27B ID/s.
 
 Comparison with `google/uuid`:
 - Generation: ksid (~33 ns) is at least ~7.5x faster than both uuid v4 (~250 ns) and uuid v7 (~290 ns).
@@ -30,13 +30,13 @@ goos: linux
 goarch: amd64
 pkg: github.com/maruel/ksid
 cpu: 13th Gen Intel(R) Core(TM) i7-13700
-BenchmarkUUID/ksid-gen-24        36123418      33.15 ns/op       0 B/op     0 allocs/op
-BenchmarkUUID/uuidv4-gen-24       4740570     248.8  ns/op      16 B/op     1 allocs/op
-BenchmarkUUID/uuidv7-gen-24       4138654     288.5  ns/op      16 B/op     1 allocs/op
-BenchmarkUUID/ksid-encode-24     95906893      24.37 ns/op      16 B/op     1 allocs/op
-BenchmarkUUID/uuid-encode-24     23047898      64.62 ns/op      48 B/op     1 allocs/op
-BenchmarkUUID/ksid-decode-24    141703341       8.42 ns/op       0 B/op     0 allocs/op
-BenchmarkUUID/uuid-decode-24     78804513      14.89 ns/op       0 B/op     0 allocs/op
+BenchmarkID/ksid-gen-24      36123418   33.15 ns/op   0 B/op  0 allocs/op
+BenchmarkID/uuidv4-gen-24     4740570  248.8  ns/op  16 B/op  1 allocs/op
+BenchmarkID/uuidv7-gen-24     4138654  288.5  ns/op  16 B/op  1 allocs/op
+BenchmarkID/ksid-encode-24   95906893   24.37 ns/op  16 B/op  1 allocs/op
+BenchmarkID/uuid-encode-24   23047898   64.62 ns/op  48 B/op  1 allocs/op
+BenchmarkID/ksid-decode-24  141703341    8.42 ns/op   0 B/op  0 allocs/op
+BenchmarkID/uuid-decode-24   78804513   14.89 ns/op   0 B/op  0 allocs/op
 ```
 
 ## Algorithm
