@@ -7,8 +7,11 @@ package ksid
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // TestID tests all ID type methods using table-driven tests.
@@ -226,7 +229,6 @@ func TestID(t *testing.T) {
 				{"invalid ID too long", `"ABCDEFGHIJKLMNO"`}, // 15 chars > 13 max
 				{"invalid ID character", `"!!!"`},
 				{"invalid high byte character", `"` + string([]byte{200}) + `"`},
-				{"lowercase rejected", `"abc"`},
 			}
 
 			for _, tt := range tests {
@@ -272,6 +274,8 @@ func TestID(t *testing.T) {
 				{"empty string", "", 0},
 				{"zero char", "0", 0},
 				{"small ID encoded", "2", 1}, // "2" decodes to ID 1 in base32 hex
+				{"lowercase supported", "v", 15},
+				{"mixed case supported", "1a2b", 21541},
 			}
 
 			for _, tt := range tests {
@@ -312,11 +316,9 @@ func TestID(t *testing.T) {
 				{"invalid char dash", "-"},
 				{"invalid char high", string([]byte{200})},
 				{"mixed valid invalid", "ABC!DEF"},
-				{"lowercase rejected", "abc"},
 				{"invalid char W", "W"},
 				{"invalid char Z", "Z"},
 			}
-
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					_, err := DecodeID(tt.input)
@@ -614,7 +616,6 @@ func TestIDUnmarshalText(t *testing.T) {
 		}{
 			{"invalid ID too long", "ABCDEFGHIJKLMNO"},
 			{"invalid character", "!!!"},
-			{"lowercase rejected", "abc"},
 		}
 
 		for _, tt := range tests {
@@ -648,6 +649,7 @@ func TestIDList(t *testing.T) {
 				{"leading comma", "," + id1.String(), IDList{id1}},
 				{"empty parts skipped", id1.String() + ",," + id2.String(), IDList{id1, id2}},
 				{"zero IDs skipped", id1.String() + ",0," + id2.String(), IDList{id1, id2}},
+				{"lowercase supported", strings.ToLower(id1.String()) + "," + id2.String(), IDList{id1, id2}},
 			}
 
 			for _, tt := range tests {
@@ -674,7 +676,6 @@ func TestIDList(t *testing.T) {
 				input string
 			}{
 				{"invalid ID", "ABC,invalid!!!,DEF"},
-				{"lowercase rejected", "ABC,abc,DEF"},
 			}
 
 			for _, tt := range tests {
@@ -740,25 +741,64 @@ func TestIDList(t *testing.T) {
 	})
 }
 
-func BenchmarkNewID(b *testing.B) {
-	for b.Loop() {
-		NewID()
-	}
-}
+func BenchmarkUUID(b *testing.B) {
+	b.ReportAllocs()
+	b.Run("ksid-gen", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			NewID()
+		}
+	})
 
-func BenchmarkIDEncode(b *testing.B) {
-	id := NewID()
-	b.ResetTimer()
-	for b.Loop() {
-		_ = id.String()
-	}
-}
+	b.Run("uuidv4-gen", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			_, _ = uuid.NewRandom()
+		}
+	})
 
-func BenchmarkDecodeID(b *testing.B) {
-	id := NewID()
-	encoded := id.String()
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = DecodeID(encoded)
-	}
+	b.Run("uuidv7-gen", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			_, _ = uuid.NewV7()
+		}
+	})
+
+	b.Run("ksid-encode", func(b *testing.B) {
+		id := NewID()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for b.Loop() {
+			_ = id.String()
+		}
+	})
+
+	b.Run("uuid-encode", func(b *testing.B) {
+		u := uuid.New()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for b.Loop() {
+			_ = u.String()
+		}
+	})
+
+	b.Run("ksid-decode", func(b *testing.B) {
+		id := NewID()
+		s := id.String()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for b.Loop() {
+			_, _ = DecodeID(s)
+		}
+	})
+
+	b.Run("uuid-decode", func(b *testing.B) {
+		u := uuid.New()
+		s := u.String()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for b.Loop() {
+			_, _ = uuid.Parse(s)
+		}
+	})
 }

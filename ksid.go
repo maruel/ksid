@@ -18,8 +18,6 @@
 package ksid
 
 import (
-	"encoding/base32"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -37,11 +35,26 @@ const (
 
 	// sliceMask is the bitmask for extracting the 15-bit slice value.
 	sliceMask = 0x7FFF
+
+	// alphabet is the Base32 Extended Hex alphabet.
+	alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
 )
 
-// base32Enc uses base32 "Extended Hex" alphabet (0-9A-V) which is ASCII-sorted
-// and case-insensitive safe for filesystems.
-var base32Enc = base32.HexEncoding.WithPadding(base32.NoPadding)
+// decTable is a lookup table for Base32 Extended Hex decoding.
+var decTable [256]byte
+
+func init() {
+	for i := range decTable {
+		decTable[i] = 0xFF
+	}
+	for i := 0; i < len(alphabet); i++ {
+		decTable[alphabet[i]] = byte(i)
+		// Support lowercase for case-insensitive decoding
+		if alphabet[i] >= 'A' && alphabet[i] <= 'V' {
+			decTable[alphabet[i]-'A'+'a'] = byte(i)
+		}
+	}
+}
 
 // ID is a time-sortable 64-bit identifier resistant to collisions.
 //
@@ -160,14 +173,23 @@ func newIDFromParts(t10us, slice uint64) ID {
 // Leading zero-characters are stripped for compactness. Zero IDs return "0".
 func (id ID) String() string {
 	if id != 0 {
-		// Encode 64 bits as big-endian bytes, then base32 encode
-		var buf [8]byte
-		binary.BigEndian.PutUint64(buf[:], uint64(id))
-		encoded := base32Enc.EncodeToString(buf[:])
-		// Strip leading '0' (zeros)
-		for i := range len(encoded) {
-			if encoded[i] != '0' {
-				return encoded[i:]
+		var res [13]byte
+		res[0] = alphabet[(id>>59)&0x1F]
+		res[1] = alphabet[(id>>54)&0x1F]
+		res[2] = alphabet[(id>>49)&0x1F]
+		res[3] = alphabet[(id>>44)&0x1F]
+		res[4] = alphabet[(id>>39)&0x1F]
+		res[5] = alphabet[(id>>34)&0x1F]
+		res[6] = alphabet[(id>>29)&0x1F]
+		res[7] = alphabet[(id>>24)&0x1F]
+		res[8] = alphabet[(id>>19)&0x1F]
+		res[9] = alphabet[(id>>14)&0x1F]
+		res[10] = alphabet[(id>>9)&0x1F]
+		res[11] = alphabet[(id>>4)&0x1F]
+		res[12] = alphabet[(id<<1)&0x1F]
+		for i := range 13 {
+			if res[i] != '0' {
+				return string(res[i:])
 			}
 		}
 	}
@@ -218,7 +240,7 @@ func (id ID) IsZero() bool {
 // DecodeID parses an encoded string back to an ID.
 //
 // Empty string or "0" decode to zero ID. Returns an error for invalid input.
-// Only uppercase letters (0-9, A-V) are accepted.
+// Decoding is case-insensitive.
 func DecodeID(s string) (ID, error) {
 	if s == "0" || s == "" {
 		return 0, nil
@@ -226,22 +248,34 @@ func DecodeID(s string) (ID, error) {
 	if len(s) > idEncodedLen {
 		return 0, fmt.Errorf("invalid ID length: got %d, max %d", len(s), idEncodedLen)
 	}
-	// Reject lowercase letters
-	for i := range len(s) {
+
+	var val [13]byte
+	pad := 13 - len(s)
+	for i := 0; i < pad; i++ {
+		val[i] = 0
+	}
+	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if c >= 'a' && c <= 'z' {
-			return 0, fmt.Errorf("invalid ID character at position %d: %c (lowercase not allowed)", i, c)
+		v := decTable[c]
+		if v == 0xFF {
+			return 0, fmt.Errorf("invalid ID encoding: %c", c)
 		}
+		val[pad+i] = v
 	}
-	// Left-pad with '0' to full length for base32 decoding
-	for len(s) < idEncodedLen {
-		s = "0" + s
-	}
-	decoded, err := base32Enc.DecodeString(s)
-	if err != nil {
-		return 0, fmt.Errorf("invalid ID encoding: %w", err)
-	}
-	return ID(binary.BigEndian.Uint64(decoded)), nil
+
+	return ID(uint64(val[0])<<59 |
+		uint64(val[1])<<54 |
+		uint64(val[2])<<49 |
+		uint64(val[3])<<44 |
+		uint64(val[4])<<39 |
+		uint64(val[5])<<34 |
+		uint64(val[6])<<29 |
+		uint64(val[7])<<24 |
+		uint64(val[8])<<19 |
+		uint64(val[9])<<14 |
+		uint64(val[10])<<9 |
+		uint64(val[11])<<4 |
+		uint64(val[12])>>1), nil
 }
 
 // Time extracts the timestamp from an ID.
