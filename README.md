@@ -16,7 +16,7 @@ Performance
 - ksid.ID is 50% smaller (8 bytes) than UUIDs (16 bytes) in binary form.
 - ksid.ID string is at most 13 characters, 33% the size of UUIDs (36 characters).
 - ksid.ID is faster to generate, encode and decode than UUIDs.
-- Maximium generation throughput: 32768 ID/µs and 3.27B ID/s.
+- Maximium generation throughput: 32768 ID/10µs and 3.27B ID/s.
 
 Comparison with `google/uuid`:
 - Generation: ksid (~33 ns) is at least ~7.5x faster than both uuid v4 (~250 ns) and uuid v7 (~290 ns).
