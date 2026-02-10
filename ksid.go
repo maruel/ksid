@@ -5,7 +5,7 @@
 // Package ksid provides k-sortable, 64-bit unique identifiers.
 //
 // IDs are generated with [NewID], encoded to compact base32 Extended Hex
-// strings (≤13 chars, lexicographically sortable), and decoded with [DecodeID].
+// strings (≤13 chars, lexicographically sortable), and decoded with [Parse].
 // They implement [json.Marshaler], [json.Unmarshaler], [encoding.TextMarshaler],
 // and [encoding.TextUnmarshaler] so they work transparently as JSON values and
 // map keys.
@@ -207,7 +207,7 @@ func (id *ID) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	parsed, err := DecodeID(s)
+	parsed, err := Parse(s)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func (id ID) MarshalText() ([]byte, error) {
 // UnmarshalText implements encoding.TextUnmarshaler.
 // This allows ID to be used as a map key in JSON decoding.
 func (id *ID) UnmarshalText(text []byte) error {
-	parsed, err := DecodeID(string(text))
+	parsed, err := Parse(string(text))
 	if err != nil {
 		return err
 	}
@@ -239,16 +239,9 @@ func (id ID) IsZero() bool {
 
 // Parse parses an encoded string back to an ID.
 //
-// It is an alias for DecodeID.
-func Parse(s string) (ID, error) {
-	return DecodeID(s)
-}
-
-// DecodeID parses an encoded string back to an ID.
-//
 // Empty string or "0" decode to zero ID. Returns an error for invalid input.
 // Decoding is case-insensitive.
-func DecodeID(s string) (ID, error) {
+func Parse(s string) (ID, error) {
 	if s == "0" || s == "" {
 		return 0, nil
 	}
@@ -330,7 +323,7 @@ func (l *IDList) UnmarshalText(text []byte) error {
 		if part == "" {
 			continue
 		}
-		id, err := DecodeID(part)
+		id, err := Parse(part)
 		if err != nil {
 			return fmt.Errorf("invalid ID %q: %w", part, err)
 		}

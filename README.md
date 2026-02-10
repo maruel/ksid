@@ -44,4 +44,10 @@ BenchmarkID/uuid-decode-24   78804513   14.89 ns/op   0 B/op  0 allocs/op
 I (Marc-Antoine Ruel) invented this algorithm in 2014 while working on the Chromium infrastructure. I designed
 the algorithm so I could generate unique IDs that would fit 63 bits integers to use as database keys.
 
+## Structure
+
+- Bit 63: sign (always 0, keeps int64 positive)
+- Bits 62-15: 10µs intervals since epoch _2026-01-01_ (48 bits)
+- Bits 14-0: slice (15 bits = 32768 values per 10µs)
+
 The library has 100% unit testing code coverage.
