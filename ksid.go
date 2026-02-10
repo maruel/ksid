@@ -1,3 +1,7 @@
+// Copyright 2026 Marc-Antoine Ruel. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
 // Package ksid provides k-sortable, 64-bit unique identifiers.
 //
 // IDs are generated with [NewID], encoded to compact base32 Extended Hex
