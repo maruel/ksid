@@ -45,6 +45,52 @@ func TestID(t *testing.T) {
 				t.Error("IDs not properly ordered within same 10µs interval")
 			}
 		})
+
+		t.Run("slice overflow", func(t *testing.T) {
+			// Save and restore state
+			idMu.Lock()
+			oldInstance := idInstance
+			oldTotal := idTotalInstances
+			oldLastT := idLastT10us
+			idMu.Unlock()
+			t.Cleanup(func() {
+				idMu.Lock()
+				idInstance = oldInstance
+				idTotalInstances = oldTotal
+				idLastT10us = oldLastT
+				idMu.Unlock()
+			})
+
+			// Set up to overflow immediately
+			// Since we are in the same package, we can manipulate internal state.
+			idMu.Lock()
+			idLastT10us = max(0, time.Now().UnixMicro()/10-epoch)
+			idSlice = sliceMask
+			idTotalInstances = 1
+			idMu.Unlock()
+
+			// This call should trigger overflow if it happens in the same 10µs interval.
+			// If not, we'll try again.
+			for range 1000 {
+				id := NewID()
+				// If we triggered overflow, it should have waited for a new interval
+				// or at least reset the slice.
+				// Since we set idSlice = sliceMask and idTotalInstances = 1,
+				// if NewID() returns an ID with Slice() != sliceMask, it means
+				// it either went to a new interval or it overflowed and waited.
+				// Actually, if it overflowed and waited, it will definitely have a new interval.
+				if id.Slice() == 0 {
+					return
+				}
+
+				// Reset for next attempt if it happened to be a new interval already
+				idMu.Lock()
+				idLastT10us = max(0, time.Now().UnixMicro()/10-epoch)
+				idSlice = sliceMask
+				idMu.Unlock()
+			}
+			t.Fatal("could not trigger same-interval IDs")
+		})
 	})
 
 	t.Run("String", func(t *testing.T) {
