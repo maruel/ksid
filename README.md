@@ -5,11 +5,11 @@
 
 ## Properties
 
-- 63 bits unique IDs
-- Native base32 encoding, at most 13 characters
-- Both numerical and string forms are k-sortable
-- Shardable across up to 32768 servers
-- Valid until 2115, or 2204 using the 64th bit
+- 63 bits IDs that are guaranteed to be unique.
+- Native base32 encoding, at most 13 characters.
+- Both numerical and string forms are k-sortable.
+- Shardable across up to 32768 servers.
+- Valid until 2115, or 2204 using the 64th bit.
 
 Performance
 
