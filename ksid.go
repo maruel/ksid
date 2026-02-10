@@ -159,17 +159,16 @@ func newIDFromParts(t10us, slice uint64) ID {
 // ensuring lexicographic string comparison matches numeric comparison.
 // Leading zero-characters are stripped for compactness. Zero IDs return "0".
 func (id ID) String() string {
-	if id == 0 {
-		return "0"
-	}
-	// Encode 64 bits as big-endian bytes, then base32 encode
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(id))
-	encoded := base32Enc.EncodeToString(buf[:])
-	// Strip leading '0' (zeros)
-	for i := range len(encoded) {
-		if encoded[i] != '0' {
-			return encoded[i:]
+	if id != 0 {
+		// Encode 64 bits as big-endian bytes, then base32 encode
+		var buf [8]byte
+		binary.BigEndian.PutUint64(buf[:], uint64(id))
+		encoded := base32Enc.EncodeToString(buf[:])
+		// Strip leading '0' (zeros)
+		for i := range len(encoded) {
+			if encoded[i] != '0' {
+				return encoded[i:]
+			}
 		}
 	}
 	return "0"
