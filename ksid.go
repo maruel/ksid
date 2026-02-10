@@ -237,6 +237,13 @@ func (id ID) IsZero() bool {
 	return id == 0
 }
 
+// Parse parses an encoded string back to an ID.
+//
+// It is an alias for DecodeID.
+func Parse(s string) (ID, error) {
+	return DecodeID(s)
+}
+
 // DecodeID parses an encoded string back to an ID.
 //
 // Empty string or "0" decode to zero ID. Returns an error for invalid input.
