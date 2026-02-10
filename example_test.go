@@ -41,6 +41,15 @@ func ExampleID_String() {
 	// ID 1 as string: 2
 }
 
+func ExampleID_Time() {
+	id := ksid.ID(1)
+	// The epoch is 2026-01-01 00:00:00 UTC.
+	// ID 1 is the very first possible ID at the epoch with slice 1.
+	fmt.Printf("ID 1 time: %s\n", id.Time().UTC())
+	// Output:
+	// ID 1 time: 2026-01-01 00:00:00 +0000 UTC
+}
+
 func ExampleInitIDSlice() {
 	// In a multi-process environment, call InitIDSlice once at startup.
 	// For example, if this is instance 2 of 5:
