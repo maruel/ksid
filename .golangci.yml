@@ -1,0 +1,138 @@
+# Copyright 2026 Marc-Antoine Ruel. All rights reserved.
+# Use of this source code is governed under the Apache License, Version 2.0
+# that can be found in the LICENSE file.
+
+# golangci-lint configuration.
+
+version: "2"
+run:
+  tests: true
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - commentcheck
+    - contextcheck
+    - copyloopvar
+    - dupl
+    - dupword
+    - durationcheck
+    - embeddedstructfieldcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - funcorder
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    - gocritic
+    - godoclint
+    - godot
+    - gomoddirectives
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - intrange
+    - iotamixing
+    - loggercheck
+    - makezero
+    - methodfilecheck
+    - mirror
+    - modernize
+    - musttag
+    - nakedret
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - perfsprint
+    - prealloc
+    - predeclared
+    - reassign
+    - recvcheck
+    - revive
+    - sloglint
+    - sqlclosecheck
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+  settings:
+    custom:
+      commentcheck:
+        type: module
+        description: Exported declarations need doc comments starting with their name; doc comments must attach to their declaration.
+        settings: {}
+      methodfilecheck:
+        type: module
+        description: Methods must be declared in the same file as their receiver type, in one contiguous block.
+        settings: {}
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - appendAssign
+        - exitAfterDefer
+        - unnamedResult
+    gosec:
+      excludes:
+        - G101
+        - G107
+        - G110
+        - G115
+        - G204
+        - G301
+        - G302
+        - G304
+        - G306
+        - G703
+        - G704
+        - G705
+        - G706
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+  exclusions:
+    generated: lax
+    rules:
+      - path: (.+)\.go$
+        text: should have a package comment
+    paths:
+      - third_party$
+      - builtin$
+      - ^examples/
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      # Simplify the code the way gofmt -s does.
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - ^examples/

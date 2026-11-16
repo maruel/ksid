@@ -47,7 +47,7 @@ func init() {
 	for i := range decTable {
 		decTable[i] = 0xFF
 	}
-	for i := 0; i < len(alphabet); i++ {
+	for i := range len(alphabet) {
 		decTable[alphabet[i]] = byte(i)
 		// Support lowercase for case-insensitive decoding
 		if alphabet[i] >= 'A' && alphabet[i] <= 'V' {
@@ -78,51 +78,6 @@ func init() {
 // Max throughput: ~3.27B IDs/sec total (32768 per 10µs × 100,000 intervals/sec).
 type ID uint64
 
-var (
-	idMu        sync.Mutex
-	idLastT10us int64
-	idSlice     int
-
-	// idInstance is the instance ID (0 to totalInstances-1).
-	idInstance int
-	// idTotalInstances is the total number of parallel instances.
-	// Defaults to 1 (single instance mode).
-	idTotalInstances int = 1
-)
-
-// InitIDSlice configures ID generation for multi-instance deployments.
-//
-// When running multiple parallel processes that generate IDs, each process must
-// call InitIDSlice with a unique instance number to prevent ID collisions.
-// The slice field's low-order bits are partitioned among instances.
-//
-// Parameters:
-//   - instance: this process's instance number (0 to totalInstances-1)
-//   - totalInstances: total number of parallel processes
-//
-// Example: with 3 servers, call InitIDSlice(0, 3), InitIDSlice(1, 3), and
-// InitIDSlice(2, 3) on each respective server. Each server will have a fraction
-// of the maximum throughput.
-//
-// Must be called before any NewID calls. Returns an error if parameters are
-// invalid or if totalInstances exceeds the available slice bits.
-func InitIDSlice(instance, totalInstances int) error {
-	if totalInstances < 1 {
-		return fmt.Errorf("totalInstances must be >= 1, got %d", totalInstances)
-	}
-	if instance < 0 || instance >= totalInstances {
-		return fmt.Errorf("instance must be in [0, %d), got %d", totalInstances, instance)
-	}
-	if totalInstances > sliceMask+1 {
-		return fmt.Errorf("totalInstances %d exceeds max %d (slice bits)", totalInstances, sliceMask+1)
-	}
-	idMu.Lock()
-	defer idMu.Unlock()
-	idInstance = instance
-	idTotalInstances = totalInstances
-	return nil
-}
-
 // NewID generates a new time-based ID.
 //
 // IDs are guaranteed to be unique and monotonically increasing within a process.
@@ -144,7 +99,45 @@ func NewID() ID {
 		idLastT10us++
 		idSlice = idInstance
 	}
-	return newIDFromParts(uint64(idLastT10us), uint64(idSlice)) //nolint:gosec // idLastT10us is non-negative: it starts at 0 and only grows.
+	return newIDFromParts(uint64(idLastT10us), uint64(idSlice))
+}
+
+// Parse parses an encoded string back to an ID.
+//
+// Empty string or "0" decode to zero ID. Returns an error for invalid input.
+// Decoding is case-insensitive.
+func Parse(s string) (ID, error) {
+	if s == "0" || s == "" {
+		return 0, nil
+	}
+	if len(s) > idEncodedLen {
+		return 0, fmt.Errorf("invalid ID length: got %d, max %d", len(s), idEncodedLen)
+	}
+
+	var val [13]byte
+	pad := 13 - len(s)
+	for i := range len(s) {
+		c := s[i]
+		v := decTable[c]
+		if v == 0xFF {
+			return 0, fmt.Errorf("invalid ID encoding: %c", c)
+		}
+		val[pad+i] = v
+	}
+
+	return ID(uint64(val[0])<<59 |
+		uint64(val[1])<<54 |
+		uint64(val[2])<<49 |
+		uint64(val[3])<<44 |
+		uint64(val[4])<<39 |
+		uint64(val[5])<<34 |
+		uint64(val[6])<<29 |
+		uint64(val[7])<<24 |
+		uint64(val[8])<<19 |
+		uint64(val[9])<<14 |
+		uint64(val[10])<<9 |
+		uint64(val[11])<<4 |
+		uint64(val[12])>>1), nil
 }
 
 func newIDFromParts(t10us, slice uint64) ID {
@@ -224,52 +217,11 @@ func (id ID) IsZero() bool {
 	return id == 0
 }
 
-// Parse parses an encoded string back to an ID.
-//
-// Empty string or "0" decode to zero ID. Returns an error for invalid input.
-// Decoding is case-insensitive.
-func Parse(s string) (ID, error) {
-	if s == "0" || s == "" {
-		return 0, nil
-	}
-	if len(s) > idEncodedLen {
-		return 0, fmt.Errorf("invalid ID length: got %d, max %d", len(s), idEncodedLen)
-	}
-
-	var val [13]byte
-	pad := 13 - len(s)
-	for i := 0; i < pad; i++ {
-		val[i] = 0
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		v := decTable[c]
-		if v == 0xFF {
-			return 0, fmt.Errorf("invalid ID encoding: %c", c)
-		}
-		val[pad+i] = v
-	}
-
-	return ID(uint64(val[0])<<59 |
-		uint64(val[1])<<54 |
-		uint64(val[2])<<49 |
-		uint64(val[3])<<44 |
-		uint64(val[4])<<39 |
-		uint64(val[5])<<34 |
-		uint64(val[6])<<29 |
-		uint64(val[7])<<24 |
-		uint64(val[8])<<19 |
-		uint64(val[9])<<14 |
-		uint64(val[10])<<9 |
-		uint64(val[11])<<4 |
-		uint64(val[12])>>1), nil
-}
-
 // Time extracts the timestamp from an ID.
 //
 // This is the moment this ID was generated, in UTC, at 10µs resolution.
 func (id ID) Time() time.Time {
-	t10us := int64(id>>15) + epoch //nolint:gosec // bit 63 is always 0, so id>>15 fits in int64
+	t10us := int64(id>>15) + epoch
 	return time.UnixMicro(t10us * 10)
 }
 
@@ -277,7 +229,7 @@ func (id ID) Time() time.Time {
 //
 // This is a 15-bit value.
 func (id ID) Slice() int {
-	return int(id & sliceMask) //nolint:gosec // sliceMask is 0x7FFF (15 bits), always fits in int
+	return int(id & sliceMask)
 }
 
 // Compare returns -1 if id < other, 0 if equal, 1 if id > other.
@@ -289,6 +241,51 @@ func (id ID) Compare(other ID) int {
 		return 1
 	}
 	return 0
+}
+
+var (
+	idMu        sync.Mutex
+	idLastT10us int64
+	idSlice     int
+
+	// idInstance is the instance ID (0 to totalInstances-1).
+	idInstance int
+	// idTotalInstances is the total number of parallel instances.
+	// Defaults to 1 (single instance mode).
+	idTotalInstances int = 1
+)
+
+// InitIDSlice configures ID generation for multi-instance deployments.
+//
+// When running multiple parallel processes that generate IDs, each process must
+// call InitIDSlice with a unique instance number to prevent ID collisions.
+// The slice field's low-order bits are partitioned among instances.
+//
+// Parameters:
+//   - instance: this process's instance number (0 to totalInstances-1)
+//   - totalInstances: total number of parallel processes
+//
+// Example: with 3 servers, call InitIDSlice(0, 3), InitIDSlice(1, 3), and
+// InitIDSlice(2, 3) on each respective server. Each server will have a fraction
+// of the maximum throughput.
+//
+// Must be called before any NewID calls. Returns an error if parameters are
+// invalid or if totalInstances exceeds the available slice bits.
+func InitIDSlice(instance, totalInstances int) error {
+	if totalInstances < 1 {
+		return fmt.Errorf("totalInstances must be >= 1, got %d", totalInstances)
+	}
+	if instance < 0 || instance >= totalInstances {
+		return fmt.Errorf("instance must be in [0, %d), got %d", totalInstances, instance)
+	}
+	if totalInstances > sliceMask+1 {
+		return fmt.Errorf("totalInstances %d exceeds max %d (slice bits)", totalInstances, sliceMask+1)
+	}
+	idMu.Lock()
+	defer idMu.Unlock()
+	idInstance = instance
+	idTotalInstances = totalInstances
+	return nil
 }
 
 // IDList is a slice of IDs that can unmarshal from a comma-separated string.

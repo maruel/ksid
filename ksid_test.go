@@ -81,7 +81,7 @@ func TestID(t *testing.T) {
 			// A wall clock step back, or a fake clock such as testing/synctest,
 			// must not reissue IDs from an interval already used.
 			future := setIDState(t, time.Hour)
-			prev := newIDFromParts(uint64(future), 0) //nolint:gosec // future is positive.
+			prev := newIDFromParts(uint64(future), 0)
 			for i := range 2 * (sliceMask + 1) {
 				id := NewID()
 				if id <= prev {
