@@ -129,35 +129,22 @@ func InitIDSlice(instance, totalInstances int) error {
 // Multiple calls in the same 10µs interval use an incrementing slice counter.
 // When multiple instances are configured via InitIDSlice, the slice counter is
 // partitioned so each instance uses non-overlapping values.
-// If the slice overflows, it spins until the next interval to maintain uniqueness.
+//
+// The interval never moves backwards: when the wall clock steps back, IDs keep
+// counting from the last interval issued. When the slice overflows, NewID uses
+// the next interval without waiting; the clock catches up once the burst ends.
 func NewID() ID {
+	t10us := max(0, time.Now().UnixMicro()/10-epoch)
 	idMu.Lock()
-	for {
-		t10us := max(0, time.Now().UnixMicro()/10-epoch)
-
-		if t10us != idLastT10us {
-			// New interval: reset slice to instance ID
-			idLastT10us = t10us
-			idSlice = idInstance
-			id := newIDFromParts(uint64(t10us), uint64(idSlice)) //nolint:gosec // t10us is guaranteed non-negative by max(0, ...)
-			idMu.Unlock()
-			return id
-		}
-
-		// Same 10µs interval: increment slice by totalInstances
-		nextSlice := idSlice + idTotalInstances
-		if nextSlice <= sliceMask {
-			idSlice = nextSlice
-			id := newIDFromParts(uint64(t10us), uint64(idSlice)) //nolint:gosec // t10us is guaranteed non-negative by max(0, ...)
-			idMu.Unlock()
-			return id
-		}
-
-		// Overflow: release lock, wait, and retry
-		idMu.Unlock()
-		time.Sleep(time.Microsecond)
-		idMu.Lock()
+	defer idMu.Unlock()
+	if t10us > idLastT10us {
+		idLastT10us = t10us
+		idSlice = idInstance
+	} else if idSlice += idTotalInstances; idSlice > sliceMask {
+		idLastT10us++
+		idSlice = idInstance
 	}
+	return newIDFromParts(uint64(idLastT10us), uint64(idSlice)) //nolint:gosec // idLastT10us is non-negative: it starts at 0 and only grows.
 }
 
 func newIDFromParts(t10us, slice uint64) ID {

@@ -14,6 +14,24 @@ import (
 	"github.com/google/uuid"
 )
 
+// setIDState makes the last issued interval ahead of the wall clock by ahead,
+// with the slice at the start of that interval, and restores the generator
+// state on cleanup. It returns the last issued interval.
+func setIDState(t *testing.T, ahead time.Duration) int64 {
+	t.Helper()
+	idMu.Lock()
+	defer idMu.Unlock()
+	oldLastT, oldSlice, oldInstance, oldTotal := idLastT10us, idSlice, idInstance, idTotalInstances
+	t.Cleanup(func() {
+		idMu.Lock()
+		defer idMu.Unlock()
+		idLastT10us, idSlice, idInstance, idTotalInstances = oldLastT, oldSlice, oldInstance, oldTotal
+	})
+	idLastT10us = time.Now().Add(ahead).UnixMicro()/10 - epoch
+	idSlice, idInstance, idTotalInstances = 0, 0, 1
+	return idLastT10us
+}
+
 // TestID tests all ID type methods using table-driven tests.
 func TestID(t *testing.T) {
 	t.Run("NewID", func(t *testing.T) {
@@ -49,50 +67,28 @@ func TestID(t *testing.T) {
 			}
 		})
 
-		t.Run("slice overflow", func(t *testing.T) {
-			// Save and restore state
+		t.Run("slice overflow uses the next interval", func(t *testing.T) {
+			future := setIDState(t, time.Hour)
 			idMu.Lock()
-			oldInstance := idInstance
-			oldTotal := idTotalInstances
-			oldLastT := idLastT10us
-			idMu.Unlock()
-			t.Cleanup(func() {
-				idMu.Lock()
-				idInstance = oldInstance
-				idTotalInstances = oldTotal
-				idLastT10us = oldLastT
-				idMu.Unlock()
-			})
-
-			// Set up to overflow immediately
-			// Since we are in the same package, we can manipulate internal state.
-			idMu.Lock()
-			idLastT10us = max(0, time.Now().UnixMicro()/10-epoch)
 			idSlice = sliceMask
-			idTotalInstances = 1
 			idMu.Unlock()
-
-			// This call should trigger overflow if it happens in the same 10µs interval.
-			// If not, we'll try again.
-			for range 1000 {
-				id := NewID()
-				// If we triggered overflow, it should have waited for a new interval
-				// or at least reset the slice.
-				// Since we set idSlice = sliceMask and idTotalInstances = 1,
-				// if NewID() returns an ID with Slice() != sliceMask, it means
-				// it either went to a new interval or it overflowed and waited.
-				// Actually, if it overflowed and waited, it will definitely have a new interval.
-				if id.Slice() == 0 {
-					return
-				}
-
-				// Reset for next attempt if it happened to be a new interval already
-				idMu.Lock()
-				idLastT10us = max(0, time.Now().UnixMicro()/10-epoch)
-				idSlice = sliceMask
-				idMu.Unlock()
+			if id := NewID(); id.Slice() != 0 || int64(id>>15) != future+1 {
+				t.Errorf("NewID() = interval %d slice %d, want interval %d slice 0", id>>15, id.Slice(), future+1)
 			}
-			t.Fatal("could not trigger same-interval IDs")
+		})
+
+		t.Run("clock behind last interval", func(t *testing.T) {
+			// A wall clock step back, or a fake clock such as testing/synctest,
+			// must not reissue IDs from an interval already used.
+			future := setIDState(t, time.Hour)
+			prev := newIDFromParts(uint64(future), 0) //nolint:gosec // future is positive.
+			for i := range 2 * (sliceMask + 1) {
+				id := NewID()
+				if id <= prev {
+					t.Fatalf("ID[%d] = %d <= %d (not monotonic)", i, id, prev)
+				}
+				prev = id
+			}
 		})
 	})
 
